@@ -1,0 +1,23 @@
+# Build output
+build/
+build-web/
+*.o
+*.a
+*.dylib
+*.app
+relativistic-starfield
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Web build output
+web/index.html
+web/relativistic-starfield.js
+web/relativistic-starfield.wasm
+web/relativistic-starfield.data
+web/relativistic-starfield.worker.js

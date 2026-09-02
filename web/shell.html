@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Relativistic Starfield — Flight Computer</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02040a;color:#edf3ff}
+#canvas{position:fixed;inset:0;width:100%;height:100%;display:block;background:#02040a;outline:none;touch-action:none}
+.panel{position:fixed;top:16px;left:16px;width:min(370px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;padding:18px;border:1px solid #ffffff18;border-radius:18px;background:#07101de8;backdrop-filter:blur(18px);box-shadow:0 24px 80px #000a;z-index:2}
+.brand{font-size:11px;font-weight:800;letter-spacing:.14em;color:#91b5ff}.title{font-size:25px;font-weight:750;line-height:1.1;margin:4px 0}.sub{font-size:11px;color:#8290a8;margin-bottom:14px}
+.section{font-size:10px;font-weight:800;letter-spacing:.13em;color:#8398bc;margin-top:15px;margin-bottom:7px}.control{margin:10px 0}label{display:block;font-size:11px;color:#aebbd0;margin-bottom:5px}.value{float:right;color:#fff;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:#9ab8ff;cursor:pointer}.stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:12px 0}.stat{padding:9px 10px;border:1px solid #ffffff0d;border-radius:10px;background:#ffffff07}.stat b{display:block;font-size:14px;font-variant-numeric:tabular-nums}.stat span{font-size:9px;color:#7f8ca3;text-transform:uppercase;letter-spacing:.08em}
+.telemetry{font-size:11px;line-height:1.8;color:#aebbd0}.telemetry b{color:#f5f8ff;font-variant-numeric:tabular-nums}.bar{height:5px;border-radius:99px;background:#ffffff0b;overflow:hidden;margin:8px 0}.bar>i{display:block;height:100%;width:0%;background:#9ab8ff;transition:width .1s linear}
+.row{display:flex;gap:7px;margin-top:12px}button{flex:1;border:1px solid #ffffff1b;background:#ffffff0b;color:#edf3ff;border-radius:9px;padding:9px 10px;font-weight:650;cursor:pointer}button:hover{background:#ffffff16}button.primary{background:#9ab8ff;color:#07101d;border-color:#9ab8ff}.hint{margin-top:12px;padding-top:11px;border-top:1px solid #ffffff0d;font-size:10px;line-height:1.55;color:#77859e}
+.badge{display:inline-block;margin-left:5px;padding:2px 5px;border-radius:5px;background:#ffffff0a;color:#8d9ab1;font-size:9px}.effect{display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.8;color:#aebbd0}.effect b{color:#fff;font-variant-numeric:tabular-nums}
+#loading{position:fixed;inset:0;display:grid;place-items:center;background:#02040a;z-index:5}.loader{text-align:center;color:#9cabc3;font-size:12px;letter-spacing:.12em}.loader small{display:block;margin-top:8px;letter-spacing:0;color:#59677e}
+@media(max-width:700px){.panel{top:auto;bottom:10px;left:10px;width:calc(100vw - 20px);max-height:58vh;padding:14px}.title{font-size:21px}}
+</style></head>
+<body>
+<div id="loading"><div class="loader">INITIALISING RELATIVISTIC FLIGHT SYSTEM…<small>Loading WebAssembly renderer</small></div></div>
+<canvas id="canvas" tabindex="0"></canvas>
+<section class="panel">
+  <div class="brand">FLIGHT COMPUTER / RFS-01</div>
+  <div class="title">Relativistic Starfield</div>
+  <div class="sub">Special-relativistic optical flight simulation · 100,000 stars</div>
+
+  <div class="section">VELOCITY CONTROL</div>
+  <div class="control"><label>Target velocity <span class="value" id="betaValue">0.000000 c</span></label><input id="beta" type="range" min="0" max="0.999999" step="0.000001" value="0"></div>
+  <div class="control"><label>Acceleration response <span class="value" id="accValue">0.35</span></label><input id="acc" type="range" min="0.01" max="2" step="0.01" value="0.35"></div>
+  <div class="control"><label>Simulation time scale <span class="value" id="timeValue">1.0×</span></label><input id="time" type="range" min="0" max="10" step="0.1" value="1"></div>
+
+  <div class="bar"><i id="speedBar"></i></div>
+  <div class="stats">
+    <div class="stat"><b id="speed">0.000000 c</b><span>velocity</span></div><div class="stat"><b id="gamma">1.0000</b><span>Lorentz γ</span></div>
+    <div class="stat"><b id="ms">0 m/s</b><span>speed</span></div><div class="stat"><b id="distance">0</b><span>distance units</span></div>
+  </div>
+
+  <div class="section">OPTICAL EFFECTS <span class="badge">LIVE</span></div>
+  <div class="effect"><span>Forward wavelength factor</span><b id="forward">1.000000</b></div>
+  <div class="effect"><span>Backward wavelength factor</span><b id="backward">1.000000</b></div>
+  <div class="effect"><span>Forward beaming factor</span><b id="beaming">1.00×</b></div>
+  <div class="effect"><span>Time dilation</span><b id="timedilation">1.0000×</b></div>
+  <div class="telemetry"><span>Coordinate time</span> <b id="coord">0.00 s</b> · <span>Ship proper time</span> <b id="proper">0.00 s</b></div>
+
+  <div class="section">VISUAL SYSTEMS</div>
+  <div class="control"><label>Field of view <span class="value" id="fovValue">45°</span></label><input id="fov" type="range" min="25" max="100" step="1" value="45"></div>
+  <div class="control"><label>Exposure <span class="value" id="expValue">1.00×</span></label><input id="exposure" type="range" min="0.1" max="4" step="0.05" value="1"></div>
+  <div class="control"><label>Star size <span class="value" id="sizeValue">4.0 px</span></label><input id="size" type="range" min="1" max="10" step="0.5" value="4"></div>
+  <div class="control"><label>Fog horizon <span class="value" id="fogValue">1000</span></label><input id="fog" type="range" min="500" max="1400" step="10" value="1000"></div>
+
+  <div class="row"><button id="pause" class="primary">Pause flight</button><button id="reset">Reset flight</button></div>
+  <div class="hint">Right-drag: look around · ↑ / ↓: throttle · Space: pause/resume · R: reset. At high β, stars ahead compress toward the forward direction, blue-shift and brighten while the rear sky red-shifts.</div>
+</section>
+<script>
+var Module={canvas:document.getElementById('canvas'),onRuntimeInitialized:function(){
+ const $=id=>document.getElementById(id), call=(n,ret,...a)=>Module.ccall(n,ret,a.map(()=> 'number'),a);
+ const formats={beta:v=>v.toFixed(6)+' c',acc:v=>v.toFixed(2),time:v=>v.toFixed(1)+'×',fov:v=>v.toFixed(0)+'°',exposure:v=>v.toFixed(2)+'×',size:v=>v.toFixed(1)+' px',fog:v=>v.toFixed(0)};
+ const setters={beta:'set_target_beta',acc:'set_acceleration',time:'set_time_scale',fov:'set_fov',exposure:'set_exposure',size:'set_point_size',fog:'set_fog_distance'};
+ Object.keys(setters).forEach(id=>$(id).addEventListener('input',()=>{const v=parseFloat($(id).value);call(setters[id],null,v);$(id+'Value').textContent=formats[id](v)}));
+ $('pause').onclick=()=>{call('toggle_pause',null);update()};
+ $('reset').onclick=()=>{call('reset_from_web',null);['beta'].forEach(id=>$(id).value=0);update()};
+ function update(){
+   const b=call('get_beta','number'), g=1/Math.sqrt(Math.max(1e-12,1-b*b)), c=299792458;
+   $('speed').textContent=b.toFixed(6)+' c'; $('gamma').textContent=g.toFixed(4); $('ms').textContent=(b*c).toExponential(3)+' m/s';
+   $('distance').textContent=call('get_ship_distance','number').toFixed(1); $('coord').textContent=call('get_coordinate_time','number').toFixed(2)+' s'; $('proper').textContent=call('get_proper_time','number').toFixed(2)+' s';
+   $('forward').textContent=call('get_forward_doppler','number').toFixed(6); $('backward').textContent=call('get_backward_doppler','number').toFixed(6); $('beaming').textContent=call('get_forward_beaming','number').toExponential(2)+'×'; $('timedilation').textContent=(1/g).toFixed(4)+'×';
+   $('speedBar').style.width=(b*100).toFixed(4)+'%'; $('pause').textContent=call('get_paused','number')?'Resume flight':'Pause flight';
+ }
+ document.getElementById('loading').style.display='none'; $('canvas').focus(); update(); setInterval(update,100);
+}};
+</script>
+<script src="relativistic-starfield.js"></script>
+</body></html>
