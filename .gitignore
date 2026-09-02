@@ -15,9 +15,6 @@ relativistic-starfield
 .idea/
 *.swp
 
-# Web build output
-web/index.html
-web/relativistic-starfield.js
-web/relativistic-starfield.wasm
-web/relativistic-starfield.data
-web/relativistic-starfield.worker.js
+# Web build directory (ignored)
+# docs/ directory is committed to git for GitHub Pages
+

@@ -5,10 +5,42 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
+# Locate GLM headers (header-only library)
+find_path(GLM_INCLUDE_DIR glm/glm.hpp
+    PATHS
+        /opt/homebrew/include
+        /usr/local/include
+    NO_CMAKE_FIND_ROOT_PATH
+)
+
+if(NOT GLM_INCLUDE_DIR AND NOT TARGET glm::glm AND NOT TARGET glm)
+    FetchContent_Declare(
+        glm
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG 1.0.1
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(glm)
+endif()
+
 if(EMSCRIPTEN)
     add_executable(relativistic-starfield src/main.cpp)
     target_include_directories(relativistic-starfield PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
     target_compile_options(relativistic-starfield PRIVATE -Wall -Wextra -O2)
+
+    if(GLM_INCLUDE_DIR)
+        target_include_directories(relativistic-starfield PRIVATE ${GLM_INCLUDE_DIR})
+    elseif(TARGET glm::glm)
+        target_link_libraries(relativistic-starfield PRIVATE glm::glm)
+    elseif(TARGET glm)
+        target_link_libraries(relativistic-starfield PRIVATE glm)
+    elseif(glm_SOURCE_DIR)
+        target_include_directories(relativistic-starfield PRIVATE ${glm_SOURCE_DIR})
+    endif()
+
+    set_target_properties(relativistic-starfield PROPERTIES SUFFIX ".html")
     target_link_options(relativistic-starfield PRIVATE
         -sUSE_GLFW=3
         -sMAX_WEBGL_VERSION=2
@@ -18,14 +50,10 @@ if(EMSCRIPTEN)
         -sEXPORTED_FUNCTIONS=['_main','_set_target_beta','_set_acceleration','_set_time_scale','_set_fov','_set_exposure','_set_point_size','_set_fog_distance','_toggle_pause','_reset_from_web','_get_beta','_get_target_beta','_get_ship_speed_c','_get_ship_distance','_get_coordinate_time','_get_proper_time','_get_forward_doppler','_get_backward_doppler','_get_forward_beaming','_get_paused']
         --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/shaders@shaders
         --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html
-        -o ${CMAKE_CURRENT_BINARY_DIR}/index.html
     )
 else()
-    include(FetchContent)
-
     find_package(OpenGL REQUIRED)
     find_package(glfw3 CONFIG REQUIRED)
-    find_package(glm CONFIG REQUIRED)
 
     FetchContent_Declare(
         imgui
@@ -52,5 +80,15 @@ else()
     add_executable(relativistic-starfield src/main.cpp)
     target_compile_options(relativistic-starfield PRIVATE -Wall -Wextra -O2)
     target_include_directories(relativistic-starfield PRIVATE ${imgui_SOURCE_DIR})
-    target_link_libraries(relativistic-starfield PRIVATE glfw OpenGL::GL glm::glm imgui)
+
+    if(GLM_INCLUDE_DIR)
+        target_include_directories(relativistic-starfield PRIVATE ${GLM_INCLUDE_DIR})
+        target_link_libraries(relativistic-starfield PRIVATE glfw OpenGL::GL imgui)
+    elseif(TARGET glm::glm)
+        target_link_libraries(relativistic-starfield PRIVATE glfw OpenGL::GL glm::glm imgui)
+    else()
+        target_link_libraries(relativistic-starfield PRIVATE glfw OpenGL::GL glm imgui)
+    endif()
 endif()
+
+

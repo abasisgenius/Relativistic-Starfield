@@ -78,19 +78,40 @@ The native build uses GLFW, Apple's OpenGL framework, GLM and Dear ImGui for the
 
 The browser version is compiled from the same C++ source with Emscripten and targets WebGL 2.
 
-With Emscripten installed:
+Install Emscripten on macOS via Homebrew:
+
+```bash
+brew install emscripten
+```
+
+Then run the local WebAssembly build:
 
 ```bash
 make web
 ```
 
-The generated site is written to `build-web/`.
+This compiles the WebAssembly application and automatically copies the static assets (`index.html`, JavaScript glue code, `.wasm`, `.data`, and `.nojekyll`) into the `docs/` directory.
+
+### GitHub Pages Deployment
+
+GitHub Pages serves the pre-built application directly from the `docs/` directory—no GitHub Actions or CI runners required:
+
+1. Build locally on your Mac: `make web`
+2. Commit and push the updated `docs/` directory to GitHub:
+   ```bash
+   git add docs
+   git commit -m "Update WebAssembly build"
+   git push
+   ```
+3. On GitHub, navigate to **Settings** > **Pages**. Under **Build and deployment**:
+   * **Source**: Select `Deploy from a branch`
+   * **Branch**: Select `main` (or your default branch) and `/docs` directory.
+   * Click **Save**.
 
 ## Project structure
 
 ```text
 relativistic-starfield/
-├── .github/workflows/deploy-web.yml
 ├── src/main.cpp
 ├── shaders/star.vert
 ├── shaders/star.frag
@@ -100,6 +121,11 @@ relativistic-starfield/
 ├── README.md
 ├── LICENSE
 └── docs/
+    ├── index.html
+    ├── relativistic-starfield.js
+    ├── relativistic-starfield.wasm
+    ├── relativistic-starfield.data
+    └── .nojekyll
 ```
 
 ## Physics note

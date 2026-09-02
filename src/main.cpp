@@ -380,7 +380,9 @@ int main() {
         glEnableVertexAttribArray(2);
 
         shader_program = create_shader_program();
+#ifdef GL_PROGRAM_POINT_SIZE
         glEnable(GL_PROGRAM_POINT_SIZE);
+#endif
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         view_projection_location = glGetUniformLocation(shader_program, "viewProjection");
