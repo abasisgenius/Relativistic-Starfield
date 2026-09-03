@@ -28,7 +28,7 @@ The universe is generated deterministically, ensuring that both native and web b
 
 View the simulation in your browser here:
 
-👉 **[Play the Live Demo](https://YOUR_USERNAME.github.io/relativistic-starfield/)**
+👉 **[Play the Live Demo](https://abasisgenius.github.io/Relativistic-Starfield/)**
 
 ---
 
