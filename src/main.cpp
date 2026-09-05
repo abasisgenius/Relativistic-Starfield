@@ -281,6 +281,8 @@ extern "C"
         sim.fog_start = sim.fog_end * 0.8f;
     }
     EMSCRIPTEN_KEEPALIVE void toggle_pause() { sim.paused = !sim.paused; }
+    EMSCRIPTEN_KEEPALIVE void toggle_grid() { sim.show_grid = !sim.show_grid; }
+    EMSCRIPTEN_KEEPALIVE void set_grid(int enabled) { sim.show_grid = (enabled != 0); }
     EMSCRIPTEN_KEEPALIVE void reset_from_web() { reset_simulation(); }
     EMSCRIPTEN_KEEPALIVE float get_beta() { return sim.beta; }
     EMSCRIPTEN_KEEPALIVE float get_target_beta() { return sim.target_beta; }
@@ -306,6 +308,7 @@ extern "C"
         return static_cast<float>(1.0 / std::pow(std::max(d, 1e-12), 4.0));
     }
     EMSCRIPTEN_KEEPALIVE int get_paused() { return sim.paused ? 1 : 0; }
+    EMSCRIPTEN_KEEPALIVE int get_grid() { return sim.show_grid ? 1 : 0; }
 }
 #endif
 

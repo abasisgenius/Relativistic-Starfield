@@ -47,7 +47,7 @@ if(EMSCRIPTEN)
         -sMIN_WEBGL_VERSION=2
         -sALLOW_MEMORY_GROWTH=1
         -sEXPORTED_RUNTIME_METHODS=['ccall']
-        -sEXPORTED_FUNCTIONS=['_main','_set_target_beta','_set_acceleration','_set_time_scale','_set_fov','_set_exposure','_set_point_size','_set_fog_distance','_toggle_pause','_reset_from_web','_get_beta','_get_target_beta','_get_ship_speed_c','_get_ship_distance','_get_coordinate_time','_get_proper_time','_get_forward_doppler','_get_backward_doppler','_get_forward_beaming','_get_paused']
+        -sEXPORTED_FUNCTIONS=['_main','_set_target_beta','_set_acceleration','_set_time_scale','_set_fov','_set_exposure','_set_point_size','_set_fog_distance','_toggle_pause','_toggle_grid','_set_grid','_reset_from_web','_get_beta','_get_target_beta','_get_ship_speed_c','_get_ship_distance','_get_coordinate_time','_get_proper_time','_get_forward_doppler','_get_backward_doppler','_get_forward_beaming','_get_paused','_get_grid']
         --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/shaders@shaders
         --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html
     )

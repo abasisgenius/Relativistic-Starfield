@@ -48,6 +48,10 @@ input[type=range]{width:100%;accent-color:#9ab8ff;cursor:pointer}.stats{display:
   <div class="control"><label>Exposure <span class="value" id="expValue">1.00×</span></label><input id="exposure" type="range" min="0.1" max="4" step="0.05" value="1"></div>
   <div class="control"><label>Star size <span class="value" id="sizeValue">4.0 px</span></label><input id="size" type="range" min="1" max="10" step="0.5" value="4"></div>
   <div class="control"><label>Fog horizon <span class="value" id="fogValue">1000</span></label><input id="fog" type="range" min="500" max="1400" step="10" value="1000"></div>
+  <div class="control" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+    <label for="grid" style="margin-bottom:0;cursor:pointer;">Relativistic grid HUD</label>
+    <input id="grid" type="checkbox" checked style="accent-color:#9ab8ff;cursor:pointer;width:16px;height:16px;">
+  </div>
 
   <div class="row"><button id="pause" class="primary">Pause flight</button><button id="reset">Reset flight</button></div>
   <div class="hint">Right-drag: look around · ↑ / ↓: throttle · Space: pause/resume · R: reset. At high β, stars ahead compress toward the forward direction, blue-shift and brighten while the rear sky red-shifts.</div>
@@ -58,6 +62,7 @@ var Module={canvas:document.getElementById('canvas'),onRuntimeInitialized:functi
  const formats={beta:v=>v.toFixed(6)+' c',acc:v=>v.toFixed(2),time:v=>v.toFixed(1)+'×',fov:v=>v.toFixed(0)+'°',exposure:v=>v.toFixed(2)+'×',size:v=>v.toFixed(1)+' px',fog:v=>v.toFixed(0)};
  const setters={beta:'set_target_beta',acc:'set_acceleration',time:'set_time_scale',fov:'set_fov',exposure:'set_exposure',size:'set_point_size',fog:'set_fog_distance'};
  Object.keys(setters).forEach(id=>$(id).addEventListener('input',()=>{const v=parseFloat($(id).value);call(setters[id],null,v);$(id+'Value').textContent=formats[id](v)}));
+ $('grid').onchange=()=>{call('set_grid',null,$('grid').checked?1:0)};
  $('pause').onclick=()=>{call('toggle_pause',null);update()};
  $('reset').onclick=()=>{call('reset_from_web',null);['beta'].forEach(id=>$(id).value=0);update()};
  function update(){
@@ -66,6 +71,7 @@ var Module={canvas:document.getElementById('canvas'),onRuntimeInitialized:functi
    $('distance').textContent=call('get_ship_distance','number').toFixed(1); $('coord').textContent=call('get_coordinate_time','number').toFixed(2)+' s'; $('proper').textContent=call('get_proper_time','number').toFixed(2)+' s';
    $('forward').textContent=call('get_forward_doppler','number').toFixed(6); $('backward').textContent=call('get_backward_doppler','number').toFixed(6); $('beaming').textContent=call('get_forward_beaming','number').toExponential(2)+'×'; $('timedilation').textContent=(1/g).toFixed(4)+'×';
    $('speedBar').style.width=(b*100).toFixed(4)+'%'; $('pause').textContent=call('get_paused','number')?'Resume flight':'Pause flight';
+   $('grid').checked=call('get_grid','number')===1;
  }
  document.getElementById('loading').style.display='none'; $('canvas').focus(); update(); setInterval(update,100);
 }};
