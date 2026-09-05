@@ -31,13 +31,15 @@
 #ifdef __EMSCRIPTEN__
 #endif
 
-struct Star {
+struct Star
+{
     glm::vec3 position;
     float rest_wavelength;
     float rest_intensity;
 };
 
-struct Simulation {
+struct Simulation
+{
     glm::vec3 camera_front{0.0f, 0.0f, -1.0f};
     float yaw = -90.0f;
     float pitch = 0.0f;
@@ -57,12 +59,13 @@ struct Simulation {
     float fog_end = 1000.0f;
     bool paused = false;
     bool show_panel = true;
+    bool show_grid = true;
     double coordinate_time = 0.0;
     double proper_time = 0.0;
 };
 
 Simulation sim;
-GLFWwindow* window = nullptr;
+GLFWwindow *window = nullptr;
 GLuint shader_program = 0;
 GLuint vao = 0;
 GLuint vbo = 0;
@@ -76,26 +79,38 @@ GLint fog_start_location = -1;
 GLint fog_end_location = -1;
 constexpr int NUM_STARS = 100000;
 
-std::string read_text_file(const std::string& path) {
+GLuint grid_shader_program = 0;
+GLuint grid_vao = 0;
+GLuint grid_vbo = 0;
+GLsizei grid_vertex_count = 0;
+GLint grid_view_proj_location = -1;
+GLint grid_beta_location = -1;
+
+std::string read_text_file(const std::string &path)
+{
     std::ifstream file(path);
-    if (!file) throw std::runtime_error("Could not open file: " + path);
+    if (!file)
+        throw std::runtime_error("Could not open file: " + path);
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
 }
 
-std::string shader_source(const std::string& path, const std::string& version) {
+std::string shader_source(const std::string &path, const std::string &version)
+{
     return version + "\n" + read_text_file(path);
 }
 
-GLuint compile_shader(GLenum type, const std::string& source, const std::string& path) {
+GLuint compile_shader(GLenum type, const std::string &source, const std::string &path)
+{
     GLuint shader = glCreateShader(type);
-    const char* ptr = source.c_str();
+    const char *ptr = source.c_str();
     glShaderSource(shader, 1, &ptr, nullptr);
     glCompileShader(shader);
     GLint success = GL_FALSE;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
+    if (!success)
+    {
         GLint len = 0;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &len);
         std::string log(static_cast<size_t>(len), '\0');
@@ -106,7 +121,8 @@ GLuint compile_shader(GLenum type, const std::string& source, const std::string&
     return shader;
 }
 
-GLuint create_shader_program() {
+GLuint create_shader_program()
+{
 #ifdef __EMSCRIPTEN__
     const std::string version = "#version 300 es\nprecision highp float;";
 #else
@@ -120,7 +136,8 @@ GLuint create_shader_program() {
     glLinkProgram(program);
     GLint success = GL_FALSE;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (!success) {
+    if (!success)
+    {
         GLint len = 0;
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
         std::string log(static_cast<size_t>(len), '\0');
@@ -135,20 +152,83 @@ GLuint create_shader_program() {
     return program;
 }
 
-std::vector<Star> generate_universe(int count) {
+GLuint create_grid_shader_program()
+{
+#ifdef __EMSCRIPTEN__
+    const std::string version = "#version 300 es\nprecision highp float;";
+#else
+    const std::string version = "#version 410 core";
+#endif
+    GLuint vs = compile_shader(GL_VERTEX_SHADER, shader_source("shaders/grid.vert", version), "shaders/grid.vert");
+    GLuint fs = compile_shader(GL_FRAGMENT_SHADER, shader_source("shaders/grid.frag", version), "shaders/grid.frag");
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glLinkProgram(program);
+    GLint success = GL_FALSE;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success)
+    {
+        GLint len = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
+        std::string log(static_cast<size_t>(len), '\0');
+        glGetProgramInfoLog(program, len, nullptr, log.data());
+        glDeleteProgram(program);
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+        throw std::runtime_error("Grid shader program linking failed:\n" + log);
+    }
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    return program;
+}
+
+std::vector<Star> generate_universe(int count)
+{
     std::vector<Star> stars;
     stars.reserve(static_cast<size_t>(count));
     std::mt19937 generator(42); // deterministic so native/web look identical
     std::uniform_real_distribution<float> pos(-1000.0f, 1000.0f);
     std::uniform_real_distribution<float> wavelength(300.0f, 750.0f);
     std::uniform_real_distribution<float> intensity(0.5f, 1.5f);
-    for (int i = 0; i < count; ++i) {
+    for (int i = 0; i < count; ++i)
+    {
         stars.push_back({glm::vec3(pos(generator), pos(generator), pos(generator)), wavelength(generator), intensity(generator)});
     }
     return stars;
 }
 
-void reset_simulation() {
+std::vector<glm::vec3> generateGrid()
+{
+    std::vector<glm::vec3> lines;
+    float size = 500.0f; // How far out the grid reaches
+    float step = 50.0f;  // Distance between grid lines
+
+    for (float i = -size; i <= size; i += step)
+    {
+        for (float j = -size; j <= size; j += step)
+        {
+            for (float k = -size; k < size; k += step)
+            {
+                // Lines along X-axis
+                lines.push_back(glm::vec3(k, i, j));
+                lines.push_back(glm::vec3(k + step, i, j));
+
+                // Lines along Y-axis
+                lines.push_back(glm::vec3(i, k, j));
+                lines.push_back(glm::vec3(i, k + step, j));
+
+                // Lines along Z-axis
+                lines.push_back(glm::vec3(i, j, k));
+                lines.push_back(glm::vec3(i, j, k + step));
+            }
+        }
+    }
+    return lines;
+}
+
+void reset_simulation()
+{
     sim.ship_position = glm::vec3(0.0f);
     sim.beta = 0.0f;
     sim.target_beta = 0.0f;
@@ -160,9 +240,12 @@ void reset_simulation() {
     sim.proper_time = 0.0;
 }
 
-void mouse_callback(GLFWwindow*, double xpos, double ypos) {
-    if (sim.show_panel && !glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) return;
-    if (sim.first_mouse) {
+void mouse_callback(GLFWwindow *, double xpos, double ypos)
+{
+    if (sim.show_panel && !glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT))
+        return;
+    if (sim.first_mouse)
+    {
         sim.last_x = static_cast<float>(xpos);
         sim.last_y = static_cast<float>(ypos);
         sim.first_mouse = false;
@@ -181,56 +264,72 @@ void mouse_callback(GLFWwindow*, double xpos, double ypos) {
     sim.camera_front = glm::normalize(front);
 }
 
-void framebuffer_size_callback(GLFWwindow*, int width, int height) { glViewport(0, 0, width, height); }
+void framebuffer_size_callback(GLFWwindow *, int width, int height) { glViewport(0, 0, width, height); }
 
 #ifdef __EMSCRIPTEN__
-extern "C" {
-EMSCRIPTEN_KEEPALIVE void set_target_beta(float value) { sim.target_beta = glm::clamp(value, 0.0f, 0.999999f); }
-EMSCRIPTEN_KEEPALIVE void set_acceleration(float value) { sim.acceleration = glm::clamp(value, 0.01f, 2.0f); }
-EMSCRIPTEN_KEEPALIVE void set_time_scale(float value) { sim.time_scale = glm::clamp(value, 0.0f, 10.0f); }
-EMSCRIPTEN_KEEPALIVE void set_fov(float value) { sim.fov = glm::clamp(value, 25.0f, 100.0f); }
-EMSCRIPTEN_KEEPALIVE void set_exposure(float value) { sim.exposure = glm::clamp(value, 0.1f, 4.0f); }
-EMSCRIPTEN_KEEPALIVE void set_point_size(float value) { sim.point_size = glm::clamp(value, 1.0f, 10.0f); }
-EMSCRIPTEN_KEEPALIVE void set_fog_distance(float value) { sim.fog_end = glm::clamp(value, 500.0f, 1400.0f); sim.fog_start = sim.fog_end * 0.8f; }
-EMSCRIPTEN_KEEPALIVE void toggle_pause() { sim.paused = !sim.paused; }
-EMSCRIPTEN_KEEPALIVE void reset_from_web() { reset_simulation(); }
-EMSCRIPTEN_KEEPALIVE float get_beta() { return sim.beta; }
-EMSCRIPTEN_KEEPALIVE float get_target_beta() { return sim.target_beta; }
-EMSCRIPTEN_KEEPALIVE float get_ship_speed_c() { return sim.beta; }
-EMSCRIPTEN_KEEPALIVE float get_ship_distance() { return glm::length(sim.ship_position); }
-EMSCRIPTEN_KEEPALIVE float get_coordinate_time() { return static_cast<float>(sim.coordinate_time); }
-EMSCRIPTEN_KEEPALIVE float get_proper_time() { return static_cast<float>(sim.proper_time); }
-EMSCRIPTEN_KEEPALIVE float get_forward_doppler() {
-    double b = sim.beta;
-    double gamma = 1.0 / std::sqrt(std::max(1e-12, 1.0 - b * b));
-    return static_cast<float>(gamma * (1.0 - b));
-}
-EMSCRIPTEN_KEEPALIVE float get_backward_doppler() {
-    double b = sim.beta;
-    double gamma = 1.0 / std::sqrt(std::max(1e-12, 1.0 - b * b));
-    return static_cast<float>(gamma * (1.0 + b));
-}
-EMSCRIPTEN_KEEPALIVE float get_forward_beaming() {
-    double d = get_forward_doppler();
-    return static_cast<float>(1.0 / std::pow(std::max(d, 1e-12), 4.0));
-}
-EMSCRIPTEN_KEEPALIVE int get_paused() { return sim.paused ? 1 : 0; }
+extern "C"
+{
+    EMSCRIPTEN_KEEPALIVE void set_target_beta(float value) { sim.target_beta = glm::clamp(value, 0.0f, 0.999999f); }
+    EMSCRIPTEN_KEEPALIVE void set_acceleration(float value) { sim.acceleration = glm::clamp(value, 0.01f, 2.0f); }
+    EMSCRIPTEN_KEEPALIVE void set_time_scale(float value) { sim.time_scale = glm::clamp(value, 0.0f, 10.0f); }
+    EMSCRIPTEN_KEEPALIVE void set_fov(float value) { sim.fov = glm::clamp(value, 25.0f, 100.0f); }
+    EMSCRIPTEN_KEEPALIVE void set_exposure(float value) { sim.exposure = glm::clamp(value, 0.1f, 4.0f); }
+    EMSCRIPTEN_KEEPALIVE void set_point_size(float value) { sim.point_size = glm::clamp(value, 1.0f, 10.0f); }
+    EMSCRIPTEN_KEEPALIVE void set_fog_distance(float value)
+    {
+        sim.fog_end = glm::clamp(value, 500.0f, 1400.0f);
+        sim.fog_start = sim.fog_end * 0.8f;
+    }
+    EMSCRIPTEN_KEEPALIVE void toggle_pause() { sim.paused = !sim.paused; }
+    EMSCRIPTEN_KEEPALIVE void reset_from_web() { reset_simulation(); }
+    EMSCRIPTEN_KEEPALIVE float get_beta() { return sim.beta; }
+    EMSCRIPTEN_KEEPALIVE float get_target_beta() { return sim.target_beta; }
+    EMSCRIPTEN_KEEPALIVE float get_ship_speed_c() { return sim.beta; }
+    EMSCRIPTEN_KEEPALIVE float get_ship_distance() { return glm::length(sim.ship_position); }
+    EMSCRIPTEN_KEEPALIVE float get_coordinate_time() { return static_cast<float>(sim.coordinate_time); }
+    EMSCRIPTEN_KEEPALIVE float get_proper_time() { return static_cast<float>(sim.proper_time); }
+    EMSCRIPTEN_KEEPALIVE float get_forward_doppler()
+    {
+        double b = sim.beta;
+        double gamma = 1.0 / std::sqrt(std::max(1e-12, 1.0 - b * b));
+        return static_cast<float>(gamma * (1.0 - b));
+    }
+    EMSCRIPTEN_KEEPALIVE float get_backward_doppler()
+    {
+        double b = sim.beta;
+        double gamma = 1.0 / std::sqrt(std::max(1e-12, 1.0 - b * b));
+        return static_cast<float>(gamma * (1.0 + b));
+    }
+    EMSCRIPTEN_KEEPALIVE float get_forward_beaming()
+    {
+        double d = get_forward_doppler();
+        return static_cast<float>(1.0 / std::pow(std::max(d, 1e-12), 4.0));
+    }
+    EMSCRIPTEN_KEEPALIVE int get_paused() { return sim.paused ? 1 : 0; }
 }
 #endif
 
-void handle_keyboard() {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, GLFW_TRUE);
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) sim.target_beta = glm::min(sim.target_beta + 0.01f, 0.999999f);
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) sim.target_beta = glm::max(sim.target_beta - 0.01f, 0.0f);
-    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) reset_simulation();
+void handle_keyboard()
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+        sim.target_beta = glm::min(sim.target_beta + 0.01f, 0.999999f);
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+        sim.target_beta = glm::max(sim.target_beta - 0.01f, 0.0f);
+    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
+        reset_simulation();
     static bool space_was_down = false;
     bool space_down = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
-    if (space_down && !space_was_down) sim.paused = !sim.paused;
+    if (space_down && !space_was_down)
+        sim.paused = !sim.paused;
     space_was_down = space_down;
 }
 
-void update_simulation(float dt) {
-    if (sim.paused) return;
+void update_simulation(float dt)
+{
+    if (sim.paused)
+        return;
     float response = 1.0f - std::exp(-sim.acceleration * dt);
     sim.beta += (sim.target_beta - sim.beta) * response;
     sim.coordinate_time += dt * sim.time_scale;
@@ -240,8 +339,10 @@ void update_simulation(float dt) {
 }
 
 #ifndef __EMSCRIPTEN__
-void draw_native_ui() {
-    if (!sim.show_panel) return;
+void draw_native_ui()
+{
+    if (!sim.show_panel)
+        return;
     ImGui::SetNextWindowSize(ImVec2(390, 590), ImGuiCond_FirstUseEver);
     ImGui::Begin("Relativistic Flight Computer", &sim.show_panel);
 
@@ -285,10 +386,13 @@ void draw_native_ui() {
     ImGui::SliderFloat("Star point size", &sim.point_size, 1.0f, 10.0f, "%.1f px");
     ImGui::SliderFloat("Fog horizon", &sim.fog_end, 500.0f, 1400.0f, "%.0f");
     sim.fog_start = sim.fog_end * 0.8f;
+    ImGui::Checkbox("Relativistic grid HUD", &sim.show_grid);
 
-    if (ImGui::Button(sim.paused ? "Resume flight" : "Pause flight")) sim.paused = !sim.paused;
+    if (ImGui::Button(sim.paused ? "Resume flight" : "Pause flight"))
+        sim.paused = !sim.paused;
     ImGui::SameLine();
-    if (ImGui::Button("Reset flight")) reset_simulation();
+    if (ImGui::Button("Reset flight"))
+        reset_simulation();
     ImGui::Separator();
     ImGui::TextWrapped("Mouse: look around  |  Up/Down: throttle  |  Space: pause  |  R: reset");
     ImGui::TextDisabled("Right mouse button enables look while this panel is open.");
@@ -296,7 +400,8 @@ void draw_native_ui() {
 }
 #endif
 
-void render_frame(float dt) {
+void render_frame(float dt)
+{
     handle_keyboard();
     update_simulation(dt);
 
@@ -309,6 +414,8 @@ void render_frame(float dt) {
 
     glClearColor(0.005f, 0.008f, 0.02f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // --- DRAW STARS ---
     glUseProgram(shader_program);
     glUniform3fv(ship_position_location, 1, glm::value_ptr(sim.ship_position));
     glUniform1f(beta_location, sim.beta);
@@ -320,6 +427,19 @@ void render_frame(float dt) {
     glUniform1f(fog_end_location, sim.fog_end);
     glBindVertexArray(vao);
     glDrawArrays(GL_POINTS, 0, NUM_STARS);
+
+    // --- DRAW GRID ---
+    if (sim.show_grid)
+    {
+        glm::mat4 grid_view = glm::lookAt(glm::vec3(0.0f), sim.camera_front, glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 grid_vp = projection * grid_view;
+
+        glUseProgram(grid_shader_program);
+        glUniformMatrix4fv(grid_view_proj_location, 1, GL_FALSE, glm::value_ptr(grid_vp));
+        glUniform1f(grid_beta_location, sim.beta);
+        glBindVertexArray(grid_vao);
+        glDrawArrays(GL_LINES, 0, grid_vertex_count);
+    }
 
 #ifndef __EMSCRIPTEN__
     ImGui_ImplOpenGL3_NewFrame();
@@ -335,7 +455,8 @@ void render_frame(float dt) {
 }
 
 #ifdef __EMSCRIPTEN__
-void web_loop(void*) {
+void web_loop(void *)
+{
     static double last = 0.0;
     double now = emscripten_get_now() * 0.001;
     float dt = last > 0.0 ? static_cast<float>(glm::min(now - last, 0.1)) : 1.0f / 60.0f;
@@ -344,9 +465,12 @@ void web_loop(void*) {
 }
 #endif
 
-int main() {
-    try {
-        if (!glfwInit()) throw std::runtime_error("Failed to initialize GLFW");
+int main()
+{
+    try
+    {
+        if (!glfwInit())
+            throw std::runtime_error("Failed to initialize GLFW");
 #ifdef __EMSCRIPTEN__
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
@@ -357,7 +481,8 @@ int main() {
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
         window = glfwCreateWindow(1280, 720, "Relativistic Starfield", nullptr, nullptr);
-        if (!window) throw std::runtime_error("Failed to create GLFW window");
+        if (!window)
+            throw std::runtime_error("Failed to create GLFW window");
         glfwMakeContextCurrent(window);
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
         glfwSetCursorPosCallback(window, mouse_callback);
@@ -374,17 +499,12 @@ int main() {
         glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(stars.size() * sizeof(Star)), stars.data(), GL_STATIC_DRAW);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Star), nullptr);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(Star), reinterpret_cast<void*>(offsetof(Star, rest_wavelength)));
+        glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(Star), reinterpret_cast<void *>(offsetof(Star, rest_wavelength)));
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(Star), reinterpret_cast<void*>(offsetof(Star, rest_intensity)));
+        glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(Star), reinterpret_cast<void *>(offsetof(Star, rest_intensity)));
         glEnableVertexAttribArray(2);
 
         shader_program = create_shader_program();
-#ifdef GL_PROGRAM_POINT_SIZE
-        glEnable(GL_PROGRAM_POINT_SIZE);
-#endif
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         view_projection_location = glGetUniformLocation(shader_program, "viewProjection");
         ship_position_location = glGetUniformLocation(shader_program, "ship_position");
         beta_location = glGetUniformLocation(shader_program, "beta");
@@ -393,6 +513,27 @@ int main() {
         point_size_location = glGetUniformLocation(shader_program, "point_size");
         fog_start_location = glGetUniformLocation(shader_program, "fog_start");
         fog_end_location = glGetUniformLocation(shader_program, "fog_end");
+
+        // Setup Grid
+        auto grid_lines = generateGrid();
+        grid_vertex_count = static_cast<GLsizei>(grid_lines.size());
+        glGenVertexArrays(1, &grid_vao);
+        glGenBuffers(1, &grid_vbo);
+        glBindVertexArray(grid_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, grid_vbo);
+        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(grid_lines.size() * sizeof(glm::vec3)), grid_lines.data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), nullptr);
+        glEnableVertexAttribArray(0);
+
+        grid_shader_program = create_grid_shader_program();
+        grid_view_proj_location = glGetUniformLocation(grid_shader_program, "viewProjection");
+        grid_beta_location = glGetUniformLocation(grid_shader_program, "beta");
+
+#ifdef GL_PROGRAM_POINT_SIZE
+        glEnable(GL_PROGRAM_POINT_SIZE);
+#endif
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 #ifndef __EMSCRIPTEN__
         IMGUI_CHECKVERSION();
@@ -406,7 +547,8 @@ int main() {
         emscripten_set_main_loop_arg(web_loop, nullptr, 0, true);
 #else
         double last_time = glfwGetTime();
-        while (!glfwWindowShouldClose(window)) {
+        while (!glfwWindowShouldClose(window))
+        {
             double now = glfwGetTime();
             float dt = static_cast<float>(glm::min(now - last_time, 0.1));
             last_time = now;
@@ -419,15 +561,21 @@ int main() {
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
 #endif
+        glDeleteProgram(grid_shader_program);
+        glDeleteBuffers(1, &grid_vbo);
+        glDeleteVertexArrays(1, &grid_vao);
         glDeleteProgram(shader_program);
         glDeleteBuffers(1, &vbo);
         glDeleteVertexArrays(1, &vao);
         glfwDestroyWindow(window);
         glfwTerminate();
         return 0;
-    } catch (const std::exception& error) {
+    }
+    catch (const std::exception &error)
+    {
         std::cerr << "Error: " << error.what() << '\n';
-        if (window) glfwDestroyWindow(window);
+        if (window)
+            glfwDestroyWindow(window);
         glfwTerminate();
         return 1;
     }
